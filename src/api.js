@@ -2,6 +2,9 @@ const id = (value) => encodeURIComponent(String(value))
 const petPath = (ownerId, petId) => '/owners/' + id(ownerId) + '/pets/' + id(petId)
 const appointmentPath = (appointmentId) => '/appointments/' + id(appointmentId)
 
+let _lastTraceId = null
+export const getLastTraceId = () => _lastTraceId
+
 async function request(path, { method = 'GET', body } = {}) {
   let response
   try {
@@ -14,9 +17,11 @@ async function request(path, { method = 'GET', body } = {}) {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
-  } catch {
-    throw new Error('API 서버에 연결할 수 없습니다. WAS와 /api 프록시 설정을 확인하세요.')
+  } catch (networkErr) {
+    throw new Error('API 서버에 연결할 수 없습니다. WAS와 /api 프록시 설정을 확인하세요.', { cause: networkErr })
   }
+
+  _lastTraceId = response.headers.get('X-Trace-Id') || _lastTraceId
 
   const raw = await response.text()
   let data = null
@@ -102,4 +107,28 @@ export const clinicApi = {
     return request(appointmentPath(appointmentId) + '/status', { method: 'PATCH', body: { status } })
   },
   deleteAppointment(appointmentId) { return request(appointmentPath(appointmentId), { method: 'DELETE' }) },
+}
+
+const CLIENT_ERROR_RATE_LIMIT_MS = 5000
+let _lastClientErrorAt = 0
+
+export function reportClientError(level, message, url, stack) {
+  const now = Date.now()
+  if (now - _lastClientErrorAt < CLIENT_ERROR_RATE_LIMIT_MS) return
+  _lastClientErrorAt = now
+
+  const sanitizedMessage = String(message || '').slice(0, 2000)
+  const sanitizedStack = String(stack || '').slice(0, 4000)
+
+  fetch('/api/client-errors', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      level: String(level || 'error').slice(0, 20),
+      message: sanitizedMessage,
+      url: String(url || '').slice(0, 500),
+      stack: sanitizedStack,
+      timestamp: new Date().toISOString(),
+    }),
+  }).catch(() => { /* 에러 보고 자체 실패 시 무시 */ })
 }
