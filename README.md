@@ -11,7 +11,7 @@ npm run dev
 
 화면: `http://localhost:5173/`
 
-개발 서버는 `/api/*`를 `http://192.168.91.29:8080/api/*`로 프록시합니다. 팀 WAS가 실행 중이어야 보호자·반려동물·방문 기록·수의사 데이터가 표시됩니다. 예시 데이터나 브라우저 저장 모드는 없습니다. WAS가 준비되지 않았다면 API 화면에 연결 오류가 표시됩니다.
+개발 서버는 `/api/*`를 환경 변수 `VITE_API_TARGET`(기본값 `http://localhost:8080`)으로 프록시합니다. 다른 WAS를 쓰려면 실행할 때 주소를 넘깁니다. 예: `VITE_API_TARGET=http://<WAS 주소>:8080 npm run dev` (PowerShell은 `$env:VITE_API_TARGET="http://<WAS 주소>:8080"; npm run dev`). 팀 WAS가 실행 중이어야 보호자·반려동물·방문 기록·수의사 데이터가 표시됩니다. 예시 데이터나 브라우저 저장 모드는 없습니다. WAS가 준비되지 않았다면 API 화면에 연결 오류가 표시됩니다.
 
 ## Apache 배포
 
@@ -27,6 +27,66 @@ ProxyPassReverse "/api/" "http://INTERNAL-ALB-DNS:8080/api/"
 ```
 
 기존 `/petclinic/` 전체를 WAS로 보내는 ProxyPass 규칙은 현재 React 화면과 맞지 않으므로 제거해야 합니다. 내부 ALB는 WAS의 `/actuator/health`를 대상 그룹 헬스 체크 경로로 사용할 수 있습니다.
+
+## Docker 이미지로 실행 (GHCR)
+
+Apache 대신 nginx로 React 빌드 결과를 제공하는 이미지입니다. `/api/*`는 nginx가 WAS로 전달합니다. `linux/amd64`(EC2)와 `linux/arm64`(Apple Silicon)가 모두 들어 있습니다.
+
+| 항목 | 값 |
+| --- | --- |
+| 이미지 | `ghcr.io/kdt-6-aws-3/middle-project-web:0.0.1` |
+| 패키지 페이지 | <https://github.com/orgs/kdt-6-aws-3/packages/container/package/middle-project-web> |
+| 컨테이너 포트 | 80 (헬스 체크 `/index.html`) |
+| 환경 변수 | `WAS_HOST`(기본값 `was`), `WAS_PORT`(기본값 `8080`) — 기동할 때 nginx 설정에 들어갑니다 |
+
+### 1. 레지스트리 로그인
+
+패키지가 private이라 먼저 로그인합니다. 비밀번호 자리에는 `read:packages` 권한이 있는 Personal access token(classic)을 넣습니다.
+
+```bash
+docker login ghcr.io -u <GitHub 사용자명>
+```
+
+### 2. 받기와 실행
+
+```bash
+docker pull ghcr.io/kdt-6-aws-3/middle-project-web:0.0.1
+docker run -d --name petclinic-web -p 8090:80 \
+  -e WAS_HOST=<WAS 주소 또는 내부 ALB DNS> -e WAS_PORT=8080 \
+  ghcr.io/kdt-6-aws-3/middle-project-web:0.0.1
+```
+
+화면: `http://localhost:8090/`
+
+- 같은 PC에서 WAS를 Docker로 띄웠다면 두 컨테이너를 같은 네트워크에 두고 `WAS_HOST`에 WAS 컨테이너 이름을 넣습니다.
+
+  ```bash
+  docker network create petclinic
+  docker run -d --name was --network petclinic -e SPRING_PROFILES_ACTIVE=default ghcr.io/kdt-6-aws-3/middle-project-was:0.0.1
+  docker run -d --name web --network petclinic -p 8090:80 -e WAS_HOST=was ghcr.io/kdt-6-aws-3/middle-project-web:0.0.1
+  ```
+
+- WAS를 컨테이너 밖(호스트)에서 실행 중이면 `-e WAS_HOST=host.docker.internal`을 씁니다(Docker Desktop 기준).
+- `/api/`에는 IP당 초당 30건(순간 50건)의 요청 제한이 걸려 있습니다.
+
+### 3. 확인
+
+```bash
+docker ps --filter name=petclinic-web   # STATUS에 (healthy)가 보이면 정상
+curl -i http://localhost:8090/api/owners
+```
+
+응답 헤더의 `X-Trace-Id`로 같은 요청의 WAS 로그를 찾을 수 있습니다. 화면에서 난 오류는 `/api/client-errors`로 WAS에 보고되어 WAS 로그에 남습니다.
+
+### 새 버전 올리기
+
+`write:packages` 권한으로 로그인한 뒤, 레포 루트에서 버전을 올려 푸시합니다. 버전은 시맨틱 버전(`MAJOR.MINOR.PATCH`)을 따르고 이미 올린 태그는 덮어쓰지 않습니다.
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 \
+  --label org.opencontainers.image.source=https://github.com/kdt-6-aws-3/middle-project-web \
+  -t ghcr.io/kdt-6-aws-3/middle-project-web:<버전> --push .
+```
 
 ## WEB 가용 영역과 인스턴스 ID 표시
 
