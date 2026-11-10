@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { clinicApi } from '../api'
-import { Action } from '../components/Action'
-import { Notice } from '../components/Notice'
-import { errorText, fullName } from '../utils'
+import { useNavigate } from 'react-router'
+import { clinicApi } from '@/config/ApiService'
+import { Action } from '@/shared/components/Action'
+import { Notice } from '@/shared/components/Notice'
+import { errorText, fullName } from '@/shared/utils/format'
 
-export function OwnersPage({ go }) {
+export function OwnersPage() {
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -18,7 +20,7 @@ export function OwnersPage({ go }) {
       .then((data) => {
         if (!active) return
         if (filter && data.totalElements === 1 && data.content.length === 1) {
-          go('owner', { ownerId: data.content[0].id })
+          navigate('/owners/' + data.content[0].id)
           return
         }
         setResult(data)
@@ -26,7 +28,7 @@ export function OwnersPage({ go }) {
       .catch((e) => { if (active) setError(errorText(e)) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [filter, page, go])
+  }, [filter, page, navigate])
 
   function search(e) {
     e.preventDefault()
@@ -53,7 +55,7 @@ export function OwnersPage({ go }) {
           <h1>보호자 찾기</h1>
           <p>이름으로 검색하거나 전체 보호자 목록을 확인하세요.</p>
         </div>
-        <Action onClick={() => go('ownerForm')}>+ 새 보호자</Action>
+        <Action onClick={() => navigate('/owners/new')}>+ 새 보호자</Action>
       </div>
       <form className="search-row" onSubmit={search}>
         <label htmlFor="owner-search" className="sr-only">보호자 이름</label>
@@ -81,7 +83,7 @@ export function OwnersPage({ go }) {
                   <td>{owner.address}</td>
                   <td>{owner.phone}</td>
                   <td>
-                    <button className="text-link" onClick={() => go('owner', { ownerId: owner.id })}>
+                    <button className="text-link" onClick={() => navigate('/owners/' + owner.id)}>
                       상세 보기 →
                     </button>
                   </td>

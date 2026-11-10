@@ -1,9 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { RouterProvider } from 'react-router'
 import './index.css'
-import App from './App.jsx'
-import { ErrorBoundary } from './ErrorBoundary.jsx'
-import { reportClientError } from './api.js'
+import { router } from './routes/router'
+import { ErrorBoundary } from './layout/components/ErrorBoundary'
+import { reportClientError } from './config/ApiService'
 
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason
@@ -20,7 +21,7 @@ window.addEventListener('error', (event) => {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <RouterProvider router={router} />
     </ErrorBoundary>
   </StrictMode>,
 )

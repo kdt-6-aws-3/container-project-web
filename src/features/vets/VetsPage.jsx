@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { clinicApi } from '../api'
-import { Action } from '../components/Action'
-import { Notice } from '../components/Notice'
-import { errorText, fullName } from '../utils'
+import { clinicApi } from '@/config/ApiService'
+import { Action } from '@/shared/components/Action'
+import { Notice } from '@/shared/components/Notice'
+import { errorText, fullName } from '@/shared/utils/format'
 
 export function VetsPage() {
   const [result, setResult] = useState({ content: [], page: 1, totalElements: 0, totalPages: 0 })

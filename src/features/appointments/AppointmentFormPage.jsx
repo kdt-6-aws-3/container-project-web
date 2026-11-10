@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react'
-import { clinicApi } from './api'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { clinicApi } from '@/config/ApiService'
 
-const statusText = {
-  REQUESTED: '접수 대기',
-  CONFIRMED: '예약 확정',
-  CANCELLED: '취소',
-  COMPLETED: '진료 완료',
-}
-const statusOptions = [['', '전체 내역'], ['REQUESTED', '접수 대기'], ['CONFIRMED', '예약 확정'], ['COMPLETED', '진료 완료'], ['CANCELLED', '취소']]
 const isClosed = (status) => status === 'CANCELLED' || status === 'COMPLETED'
 const errorText = (error) => error instanceof Error ? error.message : '요청을 처리하지 못했습니다.'
-const displayDateTime = (value) => value ? value.replace('T', ' ').slice(0, 16) : '-'
 const localDateTime = (date) => [
   date.getFullYear(),
   String(date.getMonth() + 1).padStart(2, '0'),
@@ -31,145 +24,23 @@ const nextCalendarDate = (value) => {
   return localDateTime(nextDay).slice(0, 10)
 }
 
-export function Appointments({ go, petId }) {
-  const [filters, setFilters] = useState({ hospitalId: '', vetId: '', petId: petId ? String(petId) : '', status: '' })
-  const [applied, setApplied] = useState({ petId: petId ? String(petId) : '' })
-  const [hospitals, setHospitals] = useState([])
-  const [vets, setVets] = useState([])
-  const [page, setPage] = useState(1)
-  const [result, setResult] = useState({ content: [], page: 1, totalElements: 0, totalPages: 0 })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+export function AppointmentFormPage() {
+  const { appointmentId } = useParams()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initOwnerId = searchParams.get('ownerId') ?? ''
+  const initPetId = searchParams.get('petId') ?? ''
 
-  useEffect(() => {
-    Promise.all([clinicApi.listHospitals(), clinicApi.listAllVets()])
-      .then(([hospitalList, vetList]) => { setHospitals(hospitalList); setVets(vetList) })
-      .catch((e) => setError(errorText(e)))
-  }, [])
-  useEffect(() => {
-    let active = true
-    clinicApi.listAppointments(applied, page, 5)
-      .then((data) => { if (active) setResult(data) })
-      .catch((e) => { if (active) setError(errorText(e)) })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
-  }, [applied, page])
-
-  function search(event) {
-    event.preventDefault()
-    setError('')
-    setLoading(true)
-    setPage(1)
-    setApplied({ ...filters })
-  }
-  function showStatus(status) {
-    setFilters((current) => ({ ...current, status }))
-    setError('')
-    setLoading(true)
-    setPage(1)
-    setApplied({ ...filters, status })
-  }
-  function changePage(nextPage) {
-    setError('')
-    setLoading(true)
-    setPage(nextPage)
-  }
-  const change = (event) => setFilters((current) => ({ ...current, [event.target.name]: event.target.value }))
-  const appointments = result.content ?? []
-
-  return <section className="page">
-    <div className="page-heading"><div><span className="eyebrow">APPOINTMENTS</span><h1>진료 접수 내역</h1><p>접수 상태와 예약 내역을 조회하고 관리하세요.</p></div><button className="button" onClick={() => go('appointmentForm')}>+ 새 예약</button></div>
-    <div className="status-quick" aria-label="접수 상태 바로 보기">
-      {statusOptions.map(([value, label]) => <button key={value} type="button" className={'status-chip' + (applied.status === value || (!applied.status && !value) ? ' status-chip-active' : '')} aria-pressed={applied.status === value || (!applied.status && !value)} onClick={() => showStatus(value)}>{label}</button>)}
-    </div>
-    <form className="filter-card" onSubmit={search}>
-      <label>병원<select name="hospitalId" value={filters.hospitalId} onChange={change}><option value="">전체</option>{hospitals.map((hospital) => <option key={hospital.id} value={hospital.id}>{hospital.name}</option>)}</select></label>
-      <label>수의사<select name="vetId" value={filters.vetId} onChange={change}><option value="">전체</option>{vets.map((vet) => <option key={vet.id} value={vet.id}>{vet.name}</option>)}</select></label>
-      <label>반려동물 ID<input name="petId" type="number" min="1" value={filters.petId} onChange={change} placeholder="전체" /></label>
-      <label>상태<select name="status" value={filters.status} onChange={change}><option value="">전체</option>{Object.entries(statusText).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-      <button className="button" type="submit">조회</button>
-    </form>
-    {error && <div className="notice notice-error" role="alert">{error}</div>}
-    {!loading && !error && <p className="result-count">조회된 접수 내역 총 {result.totalElements}건</p>}
-    {loading ? <p className="empty">불러오는 중...</p> : error ? null : appointments.length === 0 ? <p className="empty">조건에 맞는 접수 내역이 없습니다.</p> :
-      <div className="table-wrap"><table><thead><tr><th>접수 번호</th><th>예약 일시</th><th>반려동물</th><th>병원</th><th>수의사</th><th>상태</th><th></th></tr></thead><tbody>
-        {appointments.map((appointment) => <tr key={appointment.id}><td>#{appointment.id}</td><td>{displayDateTime(appointment.appointmentAt)}</td><td>{appointment.petName}</td><td>{appointment.hospitalName}</td><td>{appointment.vetName}</td><td>{statusText[appointment.status] || appointment.status}</td><td><button className="text-link" onClick={() => go('appointment', { appointmentId: appointment.id })}>상세 보기 →</button></td></tr>)}
-      </tbody></table></div>}
-    {!loading && !error && result.totalPages > 1 && <div className="pagination">
-      <button className="button button-secondary" disabled={page <= 1} onClick={() => changePage(page - 1)}>이전</button>
-      <span>{result.page} / {result.totalPages} 페이지</span>
-      <button className="button button-secondary" disabled={page >= result.totalPages} onClick={() => changePage(page + 1)}>다음</button>
-    </div>}
-  </section>
-}
-
-export function AppointmentDetails({ appointmentId, go }) {
-  const [appointment, setAppointment] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    clinicApi.getAppointment(appointmentId)
-      .then(setAppointment)
-      .catch((e) => setError(errorText(e)))
-      .finally(() => setLoading(false))
-  }, [appointmentId])
-
-  async function changeStatus(status) {
-    if ((status === 'CANCELLED' || status === 'COMPLETED') &&
-      !window.confirm(status === 'CANCELLED' ? '예약을 취소할까요? 취소 후에는 상태를 바꿀 수 없습니다.' : '진료를 완료 처리할까요? 완료 후에는 상태를 바꿀 수 없습니다.')) return
-    setBusy(true); setError('')
-    try { setAppointment(await clinicApi.updateAppointmentStatus(appointmentId, status)) }
-    catch (e) { setError(errorText(e)) }
-    finally { setBusy(false) }
-  }
-  async function remove() {
-    if (!window.confirm('이 예약을 영구 삭제할까요? 기록을 남기려면 예약 취소를 사용하세요.')) return
-    setBusy(true); setError('')
-    try { await clinicApi.deleteAppointment(appointmentId); go('appointments') }
-    catch (e) { setError(errorText(e)); setBusy(false) }
-  }
-
-  if (loading) return <section className="page"><p className="empty">불러오는 중...</p></section>
-  if (!appointment) return <section className="page"><div className="notice notice-error" role="alert">{error || '예약을 찾을 수 없습니다.'}</div></section>
-  return <section className="page narrow">
-    <button className="back-link" onClick={() => go('appointments')}>← 접수 내역</button>
-    <span className="eyebrow">APPOINTMENT</span><h1>진료 접수 상세</h1>
-    {error && <div className="notice notice-error" role="alert">{error}</div>}
-    <div className="detail-card">
-      <div><small>접수 번호</small><strong>#{appointment.id}</strong></div>
-      <div><small>상태</small><strong>{statusText[appointment.status] || appointment.status}</strong></div>
-      <div><small>예약 일시</small><strong>{displayDateTime(appointment.appointmentAt)}</strong></div>
-      <div><small>반려동물</small><strong>{appointment.petName} (ID {appointment.petId})</strong></div>
-      <div><small>병원</small><strong>{appointment.hospitalName}</strong></div>
-      <div><small>수의사</small><strong>{appointment.vetName}</strong></div>
-      <div><small>진료 사유</small><strong>{appointment.reason || '-'}</strong></div>
-      <div><small>신청 일시</small><strong>{displayDateTime(appointment.createdAt)}</strong></div>
-    </div>
-    <div className="inline-actions appointment-actions">
-      {!isClosed(appointment.status) && <>
-        <button className="button button-secondary" disabled={busy} onClick={() => go('appointmentForm', { appointmentId })}>예약 변경</button>
-        {appointment.status === 'REQUESTED' && <button className="button" disabled={busy} onClick={() => changeStatus('CONFIRMED')}>예약 확정</button>}
-        {appointment.status === 'CONFIRMED' && <button className="button" disabled={busy} onClick={() => changeStatus('COMPLETED')}>진료 완료</button>}
-        <button className="button button-secondary" disabled={busy} onClick={() => changeStatus('CANCELLED')}>예약 취소</button>
-      </>}
-      <button className="button button-secondary danger" disabled={busy} onClick={remove}>예약 삭제</button>
-    </div>
-  </section>
-}
-
-export function AppointmentForm({ appointmentId, ownerId, petId, go }) {
   const editing = Boolean(appointmentId)
   const [minimumDate] = useState(() => localDateTime(new Date()).slice(0, 10))
-  const [form, setForm] = useState({ hospitalId: '', petId: petId ? String(petId) : '', vetId: '', appointmentDate: '', appointmentHour: '', appointmentMinute: '', reason: '' })
+  const [form, setForm] = useState({ hospitalId: '', petId: initPetId, vetId: '', appointmentDate: '', appointmentHour: '', appointmentMinute: '', reason: '' })
   const [appointment, setAppointment] = useState(null)
   const [hospitals, setHospitals] = useState([])
   const [vets, setVets] = useState([])
   const [pets, setPets] = useState([])
   const [owners, setOwners] = useState([])
   const [ownerQuery, setOwnerQuery] = useState('')
-  const [selectedOwnerId, setSelectedOwnerId] = useState(ownerId ? String(ownerId) : '')
+  const [selectedOwnerId, setSelectedOwnerId] = useState(initOwnerId)
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -294,13 +165,14 @@ export function AppointmentForm({ appointmentId, ownerId, petId, go }) {
         appointmentAt: localDateTime(selectedTime) + ':00',
         reason: form.reason,
       }, appointmentId)
-      go('appointment', { appointmentId: saved.id })
+      navigate('/appointments/' + saved.id)
     } catch (e) { setError(e.status === 409 ? '같은 시간대에 다른 예약이 먼저 잡혔습니다. 접수 내역을 확인하고 다른 시간을 선택하세요.' : errorText(e)) }
     finally { setSaving(false) }
   }
 
-  const back = () => go(editing ? 'appointment' : 'appointments', editing ? { appointmentId } : {})
+  const back = () => navigate(editing ? '/appointments/' + appointmentId : '/appointments')
   if (loading) return <section className="page narrow"><p className="empty">불러오는 중...</p></section>
+
   return <section className="page narrow">
     <button className="back-link" onClick={back}>← 돌아가기</button>
     <span className="eyebrow">APPOINTMENT</span><h1>{editing ? '예약 변경' : '새 진료 예약'}</h1>

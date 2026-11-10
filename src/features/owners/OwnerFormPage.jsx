@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { clinicApi } from '../api'
-import { Action } from '../components/Action'
-import { Field } from '../components/Field'
-import { Notice } from '../components/Notice'
-import { errorText } from '../utils'
+import { useNavigate, useParams } from 'react-router'
+import { clinicApi } from '@/config/ApiService'
+import { Action } from '@/shared/components/Action'
+import { Field } from '@/shared/components/Field'
+import { Notice } from '@/shared/components/Notice'
+import { errorText } from '@/shared/utils/format'
 
-export function OwnerFormPage({ ownerId, go }) {
+export function OwnerFormPage() {
+  const { ownerId } = useParams()
+  const navigate = useNavigate()
   const editing = Boolean(ownerId)
   const [form, setForm] = useState({ name: '', address: '', phone: '' })
   const [loading, setLoading] = useState(editing)
@@ -31,13 +34,13 @@ export function OwnerFormPage({ ownerId, go }) {
     setSaving(true); setError('')
     try {
       const saved = await clinicApi.saveOwner(form, ownerId)
-      go('owner', { ownerId: saved.id })
+      navigate('/owners/' + saved.id)
     }
     catch (e) { setError(errorText(e)) }
     finally { setSaving(false) }
   }
 
-  const back = () => go(editing ? 'owner' : 'owners', editing ? { ownerId } : {})
+  const back = () => navigate(editing ? '/owners/' + ownerId : '/owners')
 
   return (
     <section className="page narrow">

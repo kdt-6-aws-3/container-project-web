@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { clinicApi } from '../api'
-import { Action } from '../components/Action'
-import { Field } from '../components/Field'
-import { Notice } from '../components/Notice'
-import { errorText, fullName, today } from '../utils'
+import { useNavigate, useParams } from 'react-router'
+import { clinicApi } from '@/config/ApiService'
+import { Action } from '@/shared/components/Action'
+import { Field } from '@/shared/components/Field'
+import { Notice } from '@/shared/components/Notice'
+import { errorText, fullName, today } from '@/shared/utils/format'
 
-export function PetFormPage({ ownerId, petId, go }) {
+export function PetFormPage() {
+  const { ownerId, petId } = useParams()
+  const navigate = useNavigate()
   const editing = Boolean(petId)
   const [owner, setOwner] = useState(null)
   const [types, setTypes] = useState([])
@@ -36,7 +39,7 @@ export function PetFormPage({ ownerId, petId, go }) {
     setSaving(true); setError('')
     try {
       await clinicApi.savePet(ownerId, { ...form, typeId: Number(form.typeId) }, petId)
-      go('owner', { ownerId })
+      navigate('/owners/' + ownerId)
     }
     catch (e) { setError(errorText(e)) }
     finally { setSaving(false) }
@@ -44,7 +47,7 @@ export function PetFormPage({ ownerId, petId, go }) {
 
   return (
     <section className="page narrow">
-      <button className="back-link" onClick={() => go('owner', { ownerId })}>← 보호자 상세</button>
+      <button className="back-link" onClick={() => navigate('/owners/' + ownerId)}>← 보호자 상세</button>
       <span className="eyebrow">PET</span>
       <h1>{editing ? '반려동물 정보 수정' : '반려동물 등록'}</h1>
       <p className="page-intro">
@@ -66,7 +69,7 @@ export function PetFormPage({ ownerId, petId, go }) {
             </Field>
           </div>
           <div className="form-actions">
-            <Action secondary onClick={() => go('owner', { ownerId })}>취소</Action>
+            <Action secondary onClick={() => navigate('/owners/' + ownerId)}>취소</Action>
             <Action type="submit" disabled={saving}>{saving ? '저장 중...' : editing ? '수정 저장' : '반려동물 등록'}</Action>
           </div>
         </form>

@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { reportClientError } from './api'
+import { reportClientError } from '@/config/ApiService'
 
 export class ErrorBoundary extends Component {
   constructor(props) {

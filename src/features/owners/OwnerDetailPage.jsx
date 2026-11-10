@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { clinicApi } from '../api'
-import { Action } from '../components/Action'
-import { Notice } from '../components/Notice'
-import { errorText, fullName } from '../utils'
+import { useNavigate, useParams } from 'react-router'
+import { clinicApi } from '@/config/ApiService'
+import { Action } from '@/shared/components/Action'
+import { Notice } from '@/shared/components/Notice'
+import { errorText, fullName } from '@/shared/utils/format'
 
-function PetVisits({ ownerId, petId, go, busy, onDelete }) {
+function PetVisits({ ownerId, petId, busy, onDelete }) {
+  const navigate = useNavigate()
   const [visits, setVisits] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,7 +41,7 @@ function PetVisits({ ownerId, petId, go, busy, onDelete }) {
             <div className="visit-entry-head">
               <time dateTime={visit.date}>{visit.date}</time>
               <div className="row-actions">
-                <button className="text-link" onClick={() => go('visitForm', { ownerId, petId, visitId: visit.id })}>수정</button>
+                <button className="text-link" onClick={() => navigate('/owners/' + ownerId + '/pets/' + petId + '/visits/' + visit.id + '/edit')}>수정</button>
                 <button className="text-link danger" disabled={busy} onClick={() => onDelete(visit.id)}>삭제</button>
               </div>
             </div>
@@ -56,7 +58,9 @@ function PetVisits({ ownerId, petId, go, busy, onDelete }) {
   )
 }
 
-export function OwnerDetailPage({ ownerId, go }) {
+export function OwnerDetailPage() {
+  const { ownerId } = useParams()
+  const navigate = useNavigate()
   const [owner, setOwner] = useState(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -75,9 +79,9 @@ export function OwnerDetailPage({ ownerId, go }) {
   const removeOwner = useCallback(async () => {
     if (!window.confirm('보호자를 삭제하면 반려동물, 방문 기록, 진료 예약도 함께 삭제됩니다. 계속할까요?')) return
     setBusy(true); setError('')
-    try { await clinicApi.deleteOwner(ownerId); go('owners') }
+    try { await clinicApi.deleteOwner(ownerId); navigate('/owners') }
     catch (e) { setError(errorText(e)); setBusy(false) }
-  }, [ownerId, go])
+  }, [ownerId, navigate])
 
   const removeRelated = useCallback(async (message, action) => {
     if (!window.confirm(message)) return
@@ -96,7 +100,7 @@ export function OwnerDetailPage({ ownerId, go }) {
 
   return (
     <section className="page">
-      <button className="back-link" onClick={() => go('owners')}>← 보호자 목록</button>
+      <button className="back-link" onClick={() => navigate('/owners')}>← 보호자 목록</button>
       <div className="page-heading">
         <div>
           <span className="eyebrow">OWNER PROFILE</span>
@@ -104,7 +108,7 @@ export function OwnerDetailPage({ ownerId, go }) {
           <p>보호자 정보와 반려동물의 진료 기록</p>
         </div>
         <div className="inline-actions">
-          <Action secondary onClick={() => go('ownerForm', { ownerId })}>정보 수정</Action>
+          <Action secondary onClick={() => navigate('/owners/' + ownerId + '/edit')}>정보 수정</Action>
           <Action secondary disabled={busy} onClick={removeOwner}>보호자 삭제</Action>
         </div>
       </div>
@@ -116,7 +120,7 @@ export function OwnerDetailPage({ ownerId, go }) {
       </div>
       <div className="section-heading inline">
         <div><span className="eyebrow">PETS & VISITS</span><h2>반려동물과 진료 기록</h2></div>
-        <Action onClick={() => go('petForm', { ownerId })}>+ 반려동물 등록</Action>
+        <Action onClick={() => navigate('/owners/' + ownerId + '/pets/new')}>+ 반려동물 등록</Action>
       </div>
       {owner.pets?.length ? (
         <div className="pet-grid">
@@ -130,10 +134,10 @@ export function OwnerDetailPage({ ownerId, go }) {
                 </div>
               </div>
               <div className="pet-actions">
-                <button className="text-link" onClick={() => go('petForm', { ownerId, petId: pet.id })}>정보 수정</button>
-                <button className="text-link" onClick={() => go('visitForm', { ownerId, petId: pet.id })}>+ 진료 기록</button>
-                <button className="text-link" onClick={() => go('appointmentForm', { ownerId, petId: pet.id })}>+ 진료 예약</button>
-                <button className="text-link" onClick={() => go('appointments', { petId: pet.id })}>접수 내역</button>
+                <button className="text-link" onClick={() => navigate('/owners/' + ownerId + '/pets/' + pet.id + '/edit')}>정보 수정</button>
+                <button className="text-link" onClick={() => navigate('/owners/' + ownerId + '/pets/' + pet.id + '/visits/new')}>+ 진료 기록</button>
+                <button className="text-link" onClick={() => navigate('/appointments/new?ownerId=' + ownerId + '&petId=' + pet.id)}>+ 진료 예약</button>
+                <button className="text-link" onClick={() => navigate('/appointments?petId=' + pet.id)}>접수 내역</button>
                 <button className="text-link danger" disabled={busy}
                   onClick={() => removeRelated(
                     '반려동물을 삭제하면 진료 기록과 진료 예약도 함께 삭제됩니다. 계속할까요?',
@@ -146,7 +150,6 @@ export function OwnerDetailPage({ ownerId, go }) {
                 key={`${pet.id}-${visitsRefreshKey}`}
                 ownerId={ownerId}
                 petId={pet.id}
-                go={go}
                 busy={busy}
                 onDelete={(visitId) => removeRelated(
                   '이 진료 기록을 삭제할까요?',
