@@ -14,6 +14,10 @@ RUN npm run build
 # ── 2단계: 실행 ──────────────────────────────────────────────
 FROM nginx:1.27-alpine AS runtime
 
+LABEL org.opencontainers.image.version="0.0.2" \
+      org.opencontainers.image.title="container-project-web" \
+      org.opencontainers.image.description="PetClinic React SPA — nginx static serving"
+
 RUN addgroup -S petclinic && adduser -S petclinic -G petclinic
 
 COPY --from=builder /build/dist /usr/share/nginx/html
